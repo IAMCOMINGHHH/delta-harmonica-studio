@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="三角洲行动口琴键位练习、简谱编辑、曲库与浏览器试听工具。" />
+  <title>三角洲口琴工坊</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">DELTA HARMONICA STUDIO</p>
+      <h1>三角洲口琴工坊</h1>
+      <p class="lead">学键位、录简谱、建曲库，在浏览器里安全试听。</p>
+    </div>
+    <div class="status"><span></span> 本地运行 · 不向游戏发送按键</div>
+  </header>
+
+  <main>
+    <section class="warning">
+      <strong>使用边界</strong>
+      <span>官方规则禁止模拟按键脚本与鼠标宏。本工具只在网页内发声和显示手动键位，请勿改造成游戏自动输入工具。</span>
+    </section>
+
+    <nav class="tabs" aria-label="功能导航">
+      <button class="tab active" data-view="play">演奏台</button>
+      <button class="tab" data-view="editor">制谱器</button>
+      <button class="tab" data-view="library">曲库</button>
+      <button class="tab" data-view="guide">键位说明</button>
+    </nav>
+
+    <section id="play" class="view active">
+      <div class="panel now-playing">
+        <div>
+          <span class="label">正在演奏</span>
+          <h2 id="nowTitle">音阶练习</h2>
+          <p id="nowMeta">88 BPM · C 调</p>
+        </div>
+        <div class="transport">
+          <button id="playSong" class="primary">▶ 播放</button>
+          <button id="stopSong">■ 停止</button>
+          <label>速度 <input id="tempo" type="range" min="50" max="180" value="88" /><output id="tempoValue">88</output></label>
+        </div>
+      </div>
+
+      <div class="panel keyboard-panel">
+        <div class="section-head"><div><span class="label">手动练习</span><h2>自然音键盘</h2></div><p>点击按钮或按键盘 Z–M</p></div>
+        <div id="keyboard" class="keyboard" aria-label="口琴键盘"></div>
+        <div class="modifiers">
+          <span><kbd>鼠标左键</kbd> 低八度</span><span><kbd>鼠标中键</kbd> 升半音</span><span><kbd>鼠标右键</kbd> 高八度</span>
+        </div>
+      </div>
+
+      <div class="panel score-runner">
+        <div class="section-head"><div><span class="label">跟弹提示</span><h2>当前谱面</h2></div><span id="progressText">0 / 0</span></div>
+        <div id="scoreStrip" class="score-strip"></div>
+        <p id="gestureHint" class="gesture-hint">选择曲目并点击播放</p>
+      </div>
+    </section>
+
+    <section id="editor" class="view">
+      <div class="editor-grid">
+        <div class="panel">
+          <span class="label">输入曲目</span><h2>数字简谱编辑器</h2>
+          <div class="fields"><label>曲名<input id="songTitle" value="我的曲目" /></label><label>作者<input id="songArtist" value="佚名" /></label><label>BPM<input id="songBpm" type="number" min="30" max="240" value="90" /></label></div>
+          <label class="full">简谱<textarea id="scoreInput" rows="10">1 2 3 4 | 5 6 7 1' | 0 5 4 3 | 2 - 1 -</textarea></label>
+          <p class="syntax">语法：<code>1–7</code> 中音，<code>1,</code> 低音，<code>1'</code> 高音，<code>#4</code> 升半音，<code>0</code> 休止，<code>-</code> 延长一拍，<code>3/2</code> 半拍，<code>3*2</code> 两拍。</p>
+          <div class="actions"><button id="previewScore" class="primary">生成并试听</button><button id="saveSong">保存到曲库</button><button id="clearEditor">清空</button></div>
+          <p id="editorMessage" class="message" role="status"></p>
+        </div>
+        <div class="panel preview"><span class="label">生成结果</span><h2>键位序列</h2><div id="generatedScore" class="generated-score"></div></div>
+      </div>
+    </section>
+
+    <section id="library" class="view">
+      <div class="panel">
+        <div class="section-head"><div><span class="label">本地存储</span><h2>我的曲库</h2></div><div class="actions"><button id="exportLibrary">导出 JSON</button><label class="file-button">导入 JSON<input id="importLibrary" type="file" accept="application/json,.json" /></label></div></div>
+        <div id="songList" class="song-list"></div>
+      </div>
+    </section>
+
+    <section id="guide" class="view">
+      <div class="guide-grid">
+        <article class="panel"><span class="label">默认映射</span><h2>音符 → 键位</h2><table><thead><tr><th>简谱</th><th>音程</th><th>键位</th></tr></thead><tbody><tr><td>1 2 3 4 5 6 7</td><td>C D E F G A B</td><td>Z X C V B N M</td></tr><tr><td>1'</td><td>高音 C</td><td>,（逗号）</td></tr><tr><td>低八度</td><td>整排 −12</td><td>按住鼠标左键</td></tr><tr><td>升半音</td><td>整排 +1</td><td>按住鼠标中键</td></tr><tr><td>高八度</td><td>整排 +12</td><td>按住鼠标右键</td></tr></tbody></table></article>
+        <article class="panel"><span class="label">吹奏逻辑</span><h2>38 个连续半音</h2><p>自然音键位提供大调音阶；左/右键切换低、高八度，中键临时升半音。三个音区彼此重叠，因此可覆盖连续半音阶。</p><p class="muted">社区版本和游戏更新可能改变映射。首次使用请先在安全场景逐键校对，以游戏内界面为准。</p></article>
+      </div>
+    </section>
+  </main>
+  <footer>开源学习工具 · 曲库仅在你的浏览器 localStorage 中保存</footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

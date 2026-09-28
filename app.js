@@ -52,7 +52,7 @@ function play(song) {
   const parsed = parseScore(song.score);
   parsed.events.forEach((note, index) => {
     timers.push(setTimeout(() => {
-      tone(note.semitone, Math.max(.09, note.duration * beatMs / 1000 * .82));
+      tone(note.semitone, Math.max(.09, note.duration * beatMs / 1000 * (note.legato ? .995 : .97)));
       $$(".score-token").forEach((el) => el.classList.remove("current"));
       const active = $(`.score-token[data-index="${index}"]`);
       active?.classList.add("current"); active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });

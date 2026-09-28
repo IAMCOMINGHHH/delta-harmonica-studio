@@ -20,3 +20,10 @@ test("round-trips a versioned library", () => {
   assert.deepEqual(decodeLibrary(encodeLibrary(songs)), songs);
   assert.throws(() => decodeLibrary("{}"), /受支持/);
 });
+
+test("supports fractional rests and legato markers", () => {
+  const parsed = parseScore("1/2~ 0/2 2*1.5~ 0/2");
+  assert.equal(parsed.totalBeats, 3);
+  assert.equal(parsed.events[0].legato, true);
+  assert.equal(parsed.events[1].legato, true);
+});

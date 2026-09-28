@@ -5,7 +5,7 @@ export function parseScore(source, beatsPerBar = 4) {
     .split(/\r?\n/)
     .map((line) => line.replace(/\/\/.*$/, ""))
     .join(" ");
-  const raw = clean.match(/\|:|:\||\||0|[-_]|#?[1-7](?:[,']*)?(?:\/\d+|\*\d+(?:\.\d+)?)?/g) ?? [];
+  const raw = clean.match(/\|:|:\||\||0(?:\/\d+|\*\d+(?:\.\d+)?)?|[-_]|#?[1-7](?:[,']*)?(?:\/\d+|\*\d+(?:\.\d+)?)?~?/g) ?? [];
   const events = [];
   let beat = 0;
   let lastNote = null;
@@ -17,20 +17,21 @@ export function parseScore(source, beatsPerBar = 4) {
       beat += 1;
       continue;
     }
-    if (token === "0") {
+    const restMatch = token.match(/^0(?:\/(\d+)|\*(\d+(?:\.\d+)?))?$/);
+    if (restMatch) {
       lastNote = null;
-      beat += 1;
+      beat += restMatch[1] ? 1 / Number(restMatch[1]) : restMatch[2] ? Number(restMatch[2]) : 1;
       continue;
     }
 
-    const match = token.match(/^(#?)([1-7])([,']*)(?:\/(\d+)|\*(\d+(?:\.\d+)?))?$/);
+    const match = token.match(/^(#?)([1-7])([,']*)(?:\/(\d+)|\*(\d+(?:\.\d+)?))?(~?)$/);
     if (!match) continue;
-    const [, accidental, degreeText, octaveMarks, divisor, multiplier] = match;
+    const [, accidental, degreeText, octaveMarks, divisor, multiplier, legato] = match;
     const duration = divisor ? 1 / Number(divisor) : multiplier ? Number(multiplier) : 1;
     const octave = [...octaveMarks].reduce((sum, mark) => sum + (mark === "'" ? 1 : -1), 0);
     const degree = Number(degreeText);
     const semitone = DEGREE_SEMITONES[degree - 1] + octave * 12 + (accidental ? 1 : 0);
-    lastNote = { token, degree, accidental: Boolean(accidental), octave, semitone, beat, duration };
+    lastNote = { token: token.replace(/~$/, ""), degree, accidental: Boolean(accidental), octave, semitone, beat, duration, legato: Boolean(legato) };
     events.push(lastNote);
     beat += duration;
   }

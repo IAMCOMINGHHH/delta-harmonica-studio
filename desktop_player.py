@@ -15,15 +15,16 @@ import threading
 import time
 import tkinter as tk
 from ctypes import wintypes
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 
 DEGREE_SEMITONES = (0, 2, 4, 5, 7, 9, 11)
 KEY_VKS = (0x5A, 0x58, 0x43, 0x56, 0x42, 0x4E, 0x4D, 0xBC)  # Z X C V B N M ,
-TOKEN_RE = re.compile(r"\|:|:\||\||0|[-_]|#?[1-7](?:[,']*)?(?:/\d+|\*\d+(?:\.\d+)?)?")
-NOTE_RE = re.compile(r"^(#?)([1-7])([,']*)(?:/(\d+)|\*(\d+(?:\.\d+)?))?$")
+TOKEN_RE = re.compile(r"\|:|:\||\||0(?:/\d+|\*\d+(?:\.\d+)?)?|[-_]|#?[1-7](?:[,']*)?(?:/\d+|\*\d+(?:\.\d+)?)?~?")
+NOTE_RE = re.compile(r"^(#?)([1-7])([,']*)(?:/(\d+)|\*(\d+(?:\.\d+)?))?(~?)$")
+REST_RE = re.compile(r"^0(?:/(\d+)|\*(\d+(?:\.\d+)?))?$")
 
 BUILTIN_SONGS = [
     {"id": "scale", "title": "音阶练习", "artist": "练习", "bpm": 88,
@@ -43,6 +44,7 @@ class Note:
     octave: int
     beat: float
     duration: float
+    legato: bool = False
 
 
 def parse_score(source: str) -> tuple[list[Note], float]:
@@ -58,17 +60,19 @@ def parse_score(source: str) -> tuple[list[Note], float]:
                 last_note.duration += 1
             beat += 1
             continue
-        if token == "0":
+        rest_match = REST_RE.match(token)
+        if rest_match:
             last_note = None
-            beat += 1
+            divisor, multiplier = rest_match.groups()
+            beat += 1 / int(divisor) if divisor else float(multiplier or 1)
             continue
         match = NOTE_RE.match(token)
         if not match:
             continue
-        accidental, degree_text, marks, divisor, multiplier = match.groups()
+        accidental, degree_text, marks, divisor, multiplier, legato = match.groups()
         duration = 1 / int(divisor) if divisor else float(multiplier or 1)
         octave = marks.count("'") - marks.count(",")
-        last_note = Note(token, int(degree_text), bool(accidental), octave, beat, duration)
+        last_note = Note(token.rstrip("~"), int(degree_text), bool(accidental), octave, beat, duration, bool(legato))
         events.append(last_note)
         beat += duration
     return events, beat
@@ -84,6 +88,22 @@ def note_actions(note: Note) -> tuple[list[str], int]:
         modifiers.append("middle")
     key_index = 7 if note.degree == 1 and note.octave > 0 else note.degree - 1
     return modifiers, KEY_VKS[key_index]
+
+
+def compact_long_rests(notes: list[Note], max_silence: float = 2.0) -> list[Note]:
+    """Keep musical breaths but remove long accompaniment-only gaps."""
+    if not notes:
+        return []
+    result = [replace(notes[0])]
+    removed = 0.0
+    previous_end = notes[0].beat + notes[0].duration
+    for note in notes[1:]:
+        gap = note.beat - previous_end
+        if gap > max_silence:
+            removed += gap - max_silence
+        result.append(replace(note, beat=note.beat - removed))
+        previous_end = note.beat + note.duration
+    return result
 
 
 if os.name == "nt":
@@ -206,16 +226,18 @@ class Player:
                 modifiers, vk = note_actions(note)
                 for button in modifiers:
                     self.backend.mouse(button, True)
-                if modifiers and not self._wait(0.035):
+                modifier_lead = 0.018 if modifiers else 0.0
+                if modifier_lead and not self._wait(modifier_lead):
                     return
                 self.backend.key(vk, True)
-                hold = min(max(note.duration * beat_seconds * 0.72, 0.055), note.duration * beat_seconds)
+                gate = 0.995 if note.legato else 0.97
+                hold = min(max(note.duration * beat_seconds * gate, 0.055), note.duration * beat_seconds - 0.006)
                 if not self._wait(hold):
                     return
                 self.backend.key(vk, False)
                 for button in reversed(modifiers):
                     self.backend.mouse(button, False)
-                cursor = note.beat + hold / beat_seconds
+                cursor = note.beat + (modifier_lead + hold) / beat_seconds
                 self.update(f"演奏中 {index}/{len(notes)} · {note.token}")
             self.update("演奏完成")
         except Exception as exc:
@@ -237,6 +259,7 @@ class App:
         self.status = tk.StringVar(value="就绪 · F6 开始 / F7 暂停继续 / F8 停止")
         self.song_var = tk.StringVar()
         self.bpm_var = tk.IntVar(value=88)
+        self.skip_long_var = tk.BooleanVar(value=True)
         self.hotkey_queue: queue.SimpleQueue[int] = queue.SimpleQueue()
         self._build()
         self._refresh_songs()
@@ -265,6 +288,7 @@ class App:
         self.title_entry.pack(side="left", padx=(8, 18))
         ttk.Label(meta, text="BPM").pack(side="left")
         ttk.Spinbox(meta, from_=30, to=240, textvariable=self.bpm_var, width=7).pack(side="left", padx=8)
+        ttk.Checkbutton(meta, text="跳过长休止", variable=self.skip_long_var).pack(side="left", padx=10)
         ttk.Button(meta, text="保存为自定义曲目", command=self.save_song).pack(side="right")
 
         ttk.Label(frame, text="数字简谱").pack(anchor="w")
@@ -310,6 +334,8 @@ class App:
         if not notes:
             messagebox.showerror("无法演奏", "没有识别到有效音符。")
             return
+        if self.skip_long_var.get():
+            notes = compact_long_rests(notes)
         self.player.start(notes, max(30, min(240, self.bpm_var.get())))
 
     def stop(self) -> None:
